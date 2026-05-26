@@ -2,22 +2,26 @@
 <html lang="en">
     <head>
         <meta charset="utf-8" />
-        <title>Open GitHub PR in Goose — Settings</title>
+        <title>Open in Goose — Settings</title>
         <style>
             :root {
                 color-scheme: light dark;
                 --fg: #1f2328;
                 --bg: #ffffff;
+                --panel: #f6f8fa;
                 --muted: #57606a;
                 --border: rgba(31, 35, 40, 0.15);
                 --accent: #1f6feb;
+                --danger: #cf222e;
             }
             @media (prefers-color-scheme: dark) {
                 :root {
                     --fg: #e6edf3;
                     --bg: #0d1117;
+                    --panel: #161b22;
                     --muted: #8b949e;
                     --border: rgba(240, 246, 252, 0.1);
+                    --danger: #f85149;
                 }
             }
             html,
@@ -33,59 +37,129 @@
             .wrap {
                 padding: 24px;
                 box-sizing: border-box;
-                max-width: 640px;
+                max-width: 760px;
                 margin: 0 auto;
             }
             h1 {
-                font-size: 16px;
-                margin: 0 0 16px;
+                font-size: 18px;
+                margin: 0 0 4px;
             }
-            label {
-                display: block;
-                font-weight: 600;
-                margin-bottom: 6px;
-            }
-            .hint {
+            .subtitle {
                 color: var(--muted);
-                font-size: 12px;
+                font-size: 13px;
+                margin: 0 0 20px;
+            }
+            details.help {
+                background: var(--panel);
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                padding: 8px 12px;
+                margin-bottom: 20px;
+                font-size: 13px;
+            }
+            details.help summary {
+                cursor: pointer;
+                font-weight: 600;
+                color: var(--fg);
+                outline: none;
+            }
+            details.help[open] summary {
                 margin-bottom: 8px;
             }
-            textarea {
-                width: 100%;
-                box-sizing: border-box;
-                padding: 8px 10px;
-                font-size: 13px;
+            details.help code {
                 font-family:
                     ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+                background: rgba(175, 184, 193, 0.2);
+                padding: 1px 5px;
+                border-radius: 3px;
+                font-size: 12px;
+            }
+            details.help ul {
+                margin: 6px 0;
+                padding-left: 22px;
+            }
+            details.help li {
+                margin: 4px 0;
+            }
+
+            .entries {
+                display: flex;
+                flex-direction: column;
+                gap: 14px;
+            }
+            .entry {
+                background: var(--panel);
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                padding: 14px;
+                display: grid;
+                grid-template-columns: 1fr auto;
+                gap: 10px 12px;
+            }
+            .entry .row {
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+            }
+            .entry .row.full {
+                grid-column: 1 / -1;
+            }
+            .entry label {
+                font-weight: 600;
+                font-size: 12px;
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+                color: var(--muted);
+            }
+            .entry input[type="text"],
+            .entry textarea {
+                width: 100%;
+                box-sizing: border-box;
+                padding: 7px 10px;
+                font-size: 13px;
                 border: 1px solid var(--border);
                 border-radius: 6px;
                 background: var(--bg);
                 color: var(--fg);
-                height: 220px;
-                resize: vertical;
-                line-height: 1.4;
+                font-family: inherit;
             }
-            textarea:focus {
+            .entry textarea {
+                font-family:
+                    ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+                font-size: 12px;
+                height: 110px;
+                resize: vertical;
+                line-height: 1.45;
+            }
+            .entry input:focus,
+            .entry textarea:focus {
                 outline: none;
                 border-color: var(--accent);
                 box-shadow: 0 0 0 3px rgba(31, 111, 235, 0.3);
             }
-            code {
-                font-family:
-                    ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-                background: rgba(175, 184, 193, 0.2);
-                padding: 1px 4px;
-                border-radius: 3px;
+            .entry .delete {
+                align-self: end;
+                background: transparent;
+                border: 1px solid var(--border);
+                color: var(--danger);
                 font-size: 12px;
+                font-weight: 600;
+                padding: 6px 10px;
+                border-radius: 6px;
+                cursor: pointer;
             }
+            .entry .delete:hover {
+                background: rgba(207, 34, 46, 0.08);
+            }
+
             .actions {
-                margin-top: 16px;
+                margin-top: 20px;
                 display: flex;
                 align-items: center;
                 gap: 12px;
             }
-            button {
-                padding: 6px 14px;
+            button.primary {
+                padding: 8px 16px;
                 font-size: 13px;
                 font-weight: 600;
                 border: 1px solid var(--border);
@@ -94,8 +168,19 @@
                 color: #fff;
                 cursor: pointer;
             }
-            button:hover {
-                filter: brightness(1.1);
+            button.secondary {
+                padding: 8px 16px;
+                font-size: 13px;
+                font-weight: 600;
+                border: 1px solid var(--border);
+                border-radius: 6px;
+                background: var(--bg);
+                color: var(--fg);
+                cursor: pointer;
+            }
+            button.primary:hover,
+            button.secondary:hover {
+                filter: brightness(1.08);
             }
             #status {
                 color: var(--muted);
@@ -106,29 +191,117 @@
             #status.show {
                 opacity: 1;
             }
+            .empty {
+                color: var(--muted);
+                font-style: italic;
+                padding: 24px;
+                text-align: center;
+                border: 1px dashed var(--border);
+                border-radius: 10px;
+            }
         </style>
     </head>
     <body>
         <div class="wrap">
-            <h1>Open GitHub PR in Goose — Settings</h1>
+            <h1>Open in Goose — Settings</h1>
+            <p class="subtitle">
+                Configure URL patterns. When a page matches, a button appears in
+                the lower-right that opens the Goose desktop app with your
+                prompt.
+            </p>
 
-            <label for="prompt">Prompt</label>
-            <div class="hint">
-                The prompt sent to Goose when opening a PR. Use
-                <code>&lt;PR LINK&gt;</code> as a placeholder — it will be
-                replaced with the full URL of the PR.
-            </div>
-            <textarea
-                id="prompt"
-                placeholder="Review the PR at <PR LINK> and summarize the changes."
-                spellcheck="false"
-            ></textarea>
+            <details class="help">
+                <summary>Pattern &amp; prompt syntax</summary>
+                <p><strong>Pattern</strong></p>
+                <ul>
+                    <li>
+                        <code>*</code> matches one path segment (no
+                        <code>/</code>)
+                    </li>
+                    <li>
+                        <code>**</code> matches anything, including
+                        <code>/</code>
+                    </li>
+                    <li>
+                        The scheme is optional — <code>https://</code> is
+                        assumed if missing
+                    </li>
+                    <li>Query strings and hashes are ignored when matching</li>
+                </ul>
+                <p><strong>Placeholders inside your prompt</strong></p>
+                <ul>
+                    <li>
+                        <code>&lt;URL&gt;</code> — the full canonical page URL
+                        (no query/hash)
+                    </li>
+                    <li>
+                        <code>&lt;1&gt;</code>, <code>&lt;2&gt;</code>, … — the
+                        values matched by each <code>*</code> /
+                        <code>**</code> in order
+                    </li>
+                </ul>
+                <p><strong>Example</strong></p>
+                <ul>
+                    <li>Pattern: <code>github.com/*/*/pull/*</code></li>
+                    <li>
+                        Prompt:
+                        <code
+                            >Review the PR at &lt;URL&gt; in repo
+                            &lt;1&gt;/&lt;2&gt;.</code
+                        >
+                    </li>
+                </ul>
+            </details>
+
+            <div id="entries" class="entries"></div>
 
             <div class="actions">
-                <button id="save" type="button">Save</button>
+                <button id="add" class="secondary" type="button">
+                    + Add pattern
+                </button>
+                <button id="save" class="primary" type="button">Save</button>
                 <span id="status">Saved ✓</span>
             </div>
         </div>
+
+        <template id="entry-template">
+            <div class="entry">
+                <div class="row">
+                    <label>Pattern</label>
+                    <input
+                        class="pattern"
+                        type="text"
+                        spellcheck="false"
+                        placeholder="github.com/*/*/pull/*"
+                        autocomplete="off"
+                    />
+                </div>
+                <button class="delete" type="button" title="Delete">
+                    Delete
+                </button>
+
+                <div class="row full">
+                    <label>Button text</label>
+                    <input
+                        class="button-text"
+                        type="text"
+                        spellcheck="false"
+                        placeholder="Open PR in goose"
+                        autocomplete="off"
+                    />
+                </div>
+
+                <div class="row full">
+                    <label>Prompt</label>
+                    <textarea
+                        class="prompt"
+                        spellcheck="false"
+                        placeholder="Review the PR at <URL>"
+                    ></textarea>
+                </div>
+            </div>
+        </template>
+
         <script src="options.js"></script>
     </body>
 </html>

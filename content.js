@@ -1,54 +1,112 @@
 (() => {
-  const BUTTON_ID = "goose-pr-button";
-  // Matches github.com/<org>/<repo>/pull/<pr> with optional trailing path/query/hash.
-  // Capture group 1 = PR number.
-  const PR_URL_RE = /^https:\/\/github\.com\/[^/]+\/[^/]+\/pull\/(\d+)(\/.*)?$/;
+  const CONTAINER_ID = "goose-button-container";
+  const STORAGE_KEY = "patterns";
 
-  const getPRNumber = () => {
-    const m = location.href.match(PR_URL_RE);
-    return m ? m[1] : null;
+  // ─── Pattern → RegExp ──────────────────────────────────────────────────────
+  // Syntax:
+  //   *   matches one path segment (no `/`)
+  //   **  matches any characters (including `/`)
+  // Scheme defaults to `https://` if not present.
+  // The query string and hash of the page URL are ignored when matching.
+  // Anchored to start; if the pattern doesn't end in `*`/`**`, we still allow
+  // a trailing slash + arbitrary path so e.g. `github.com/*/*/pull/*` matches
+  // `.../pull/123/files`.
+  //
+  // Returns { regex, captureCount } or null if the pattern is empty.
+  const compilePattern = (rawPattern) => {
+    if (!rawPattern) return null;
+    let p = rawPattern.trim();
+    if (!p) return null;
+
+    // Add scheme if missing.
+    if (!/^https?:\/\//.test(p)) {
+      p = "https://" + p;
+    }
+
+    let captureCount = 0;
+    let out = "";
+    let i = 0;
+    while (i < p.length) {
+      const ch = p[i];
+      if (ch === "*") {
+        if (p[i + 1] === "*") {
+          out += "(.*)";
+          captureCount++;
+          i += 2;
+        } else {
+          out += "([^/]*)";
+          captureCount++;
+          i += 1;
+        }
+      } else if (/[.+?^${}()|[\]\\]/.test(ch)) {
+        // Escape regex metachars (note: `*` handled above; `/` is not special)
+        out += "\\" + ch;
+        i += 1;
+      } else {
+        out += ch;
+        i += 1;
+      }
+    }
+
+    // Allow trailing path/query/hash after the matched portion.
+    const regex = new RegExp("^" + out + "(?:[/?#].*)?$");
+    return { regex, captureCount };
   };
 
-  const isPRPage = () => getPRNumber() !== null;
+  // Canonical URL = origin + pathname (drop query + hash) for matching/display.
+  const canonicalUrl = () => location.origin + location.pathname;
 
-  const getPRLink = () => {
-    const m = location.href.match(PR_URL_RE);
+  // Evaluate one pattern against the current page URL.
+  // Returns { captures: string[] } if it matches, else null.
+  const matchPattern = (rawPattern) => {
+    const compiled = compilePattern(rawPattern);
+    if (!compiled) return null;
+    const m = canonicalUrl().match(compiled.regex);
     if (!m) return null;
-    // Canonical PR URL: strip any sub-path (/files, /commits, ...), query, or hash.
-    // m[0] is the full match including any trailing path; rebuild from the base.
-    const prNumber = m[1];
-    const { origin, pathname } = location;
-    // pathname looks like /<org>/<repo>/pull/<num>[/...]; keep up to the number.
-    const base = pathname.replace(/^(\/[^/]+\/[^/]+\/pull\/\d+).*$/, "$1");
-    return `${origin}${base}`;
+    return { captures: m.slice(1) };
   };
 
-  const buildGooseUrl = (prLink, promptTemplate) => {
+  // ─── Prompt templating ─────────────────────────────────────────────────────
+  // Substitute <URL> and <1>, <2>, ... in the template.
+  const fillTemplate = (template, captures, url) => {
+    if (!template) return "";
+    let out = template.split("<URL>").join(url);
+    captures.forEach((cap, idx) => {
+      out = out.split(`<${idx + 1}>`).join(cap);
+    });
+    return out;
+  };
+
+  const buildGooseUrl = (template, captures, url) => {
     const base = "goose://new-session";
-    const template = (promptTemplate || "").trim();
-    if (!template) return base;
-    // Replace the literal placeholder <PR LINK> (case-sensitive, as specified).
-    const filled = template.split("<PR LINK>").join(prLink);
+    const filled = fillTemplate(template || "", captures, url).trim();
+    if (!filled) return base;
     return `${base}?prompt=${encodeURIComponent(filled)}`;
   };
 
-  const openInGoose = () => {
-    const prLink = getPRLink();
-    if (!prLink) return;
-    chrome.storage.sync.get({ prompt: "" }, (items) => {
-      const url = buildGooseUrl(prLink, items.prompt);
-      window.location.href = url;
-    });
+  // ─── Rendering ─────────────────────────────────────────────────────────────
+  const ensureContainer = () => {
+    let c = document.getElementById(CONTAINER_ID);
+    if (!c) {
+      c = document.createElement("div");
+      c.id = CONTAINER_ID;
+      document.body.appendChild(c);
+    }
+    return c;
   };
 
-  const createButton = () => {
-    if (document.getElementById(BUTTON_ID)) return;
+  const removeContainer = () => {
+    const c = document.getElementById(CONTAINER_ID);
+    if (c) c.remove();
+  };
 
+  const createButton = ({ buttonText, prompt }, captures, url) => {
     const btn = document.createElement("button");
-    btn.id = BUTTON_ID;
+    btn.className = "goose-pr-button";
     btn.type = "button";
-    btn.setAttribute("aria-label", "Open PR in goose");
-    btn.title = "Open PR in goose";
+    const label = (buttonText || "Open in goose").trim();
+    btn.setAttribute("aria-label", label);
+    btn.title = label;
 
     const img = document.createElement("img");
     img.src = chrome.runtime.getURL("icons/goose.png");
@@ -56,39 +114,67 @@
     img.setAttribute("aria-hidden", "true");
     btn.appendChild(img);
 
-    const label = document.createElement("span");
-    label.textContent = "Open PR in goose";
-    btn.appendChild(label);
+    const span = document.createElement("span");
+    span.textContent = label;
+    btn.appendChild(span);
 
     btn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
-      openInGoose();
+      window.location.href = buildGooseUrl(prompt, captures, url);
     });
 
-    document.body.appendChild(btn);
+    return btn;
   };
 
-  const removeButton = () => {
-    const existing = document.getElementById(BUTTON_ID);
-    if (existing) existing.remove();
-  };
+  const render = (patterns) => {
+    const url = canonicalUrl();
+    const matches = (patterns || [])
+      .map((entry) => {
+        const m = matchPattern(entry.pattern);
+        return m ? { entry, captures: m.captures } : null;
+      })
+      .filter(Boolean);
 
-  const sync = () => {
-    if (isPRPage()) {
-      createButton();
-    } else {
-      removeButton();
+    if (matches.length === 0) {
+      removeContainer();
+      return;
+    }
+
+    const container = ensureContainer();
+    container.innerHTML = ""; // simple full-rerender; list is tiny
+    for (const { entry, captures } of matches) {
+      container.appendChild(createButton(entry, captures, url));
     }
   };
 
-  // Initial render
-  sync();
+  // ─── State management ──────────────────────────────────────────────────────
+  let currentPatterns = [];
 
-  // GitHub is a SPA — watch for URL changes via history API + popstate.
+  const loadAndRender = () => {
+    chrome.storage.sync.get({ [STORAGE_KEY]: [] }, (items) => {
+      currentPatterns = items[STORAGE_KEY] || [];
+      render(currentPatterns);
+    });
+  };
+
+  // React to settings changes without needing a page reload.
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "sync") return;
+    if (changes[STORAGE_KEY]) {
+      currentPatterns = changes[STORAGE_KEY].newValue || [];
+      render(currentPatterns);
+    }
+  });
+
+  // Initial render
+  loadAndRender();
+
+  // ─── SPA navigation handling ───────────────────────────────────────────────
+  const onLocationChange = () => render(currentPatterns);
+
   const origPush = history.pushState;
   const origReplace = history.replaceState;
-
   history.pushState = function (...args) {
     const ret = origPush.apply(this, args);
     window.dispatchEvent(new Event("goose:locationchange"));
@@ -99,12 +185,11 @@
     window.dispatchEvent(new Event("goose:locationchange"));
     return ret;
   };
-  window.addEventListener("popstate", () => {
-    window.dispatchEvent(new Event("goose:locationchange"));
-  });
-  window.addEventListener("goose:locationchange", sync);
-
-  // Fallback: GitHub's Turbo navigation events.
-  document.addEventListener("turbo:load", sync);
-  document.addEventListener("pjax:end", sync);
+  window.addEventListener("popstate", () =>
+    window.dispatchEvent(new Event("goose:locationchange")),
+  );
+  window.addEventListener("goose:locationchange", onLocationChange);
+  // GitHub & many SPAs use Turbo/pjax.
+  document.addEventListener("turbo:load", onLocationChange);
+  document.addEventListener("pjax:end", onLocationChange);
 })();

@@ -1,21 +1,22 @@
 {
   "manifest_version": 3,
-  "name": "Open GitHub PR in Goose",
+  "name": "Open in Goose",
   "version": "1.0.0",
-  "description": "Adds a hovering button on GitHub PR pages to open the PR in Goose via goose://new-session.",
+  "description": "Configurable URL-pattern → prompt launcher for the Goose desktop app.",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
   "permissions": ["storage"],
+  "host_permissions": ["<all_urls>"],
   "options_ui": {
     "page": "options.html",
     "open_in_tab": true
   },
   "content_scripts": [
     {
-      "matches": ["https://github.com/*"],
+      "matches": ["<all_urls>"],
       "js": ["content.js"],
       "css": ["content.css"],
       "run_at": "document_idle"
@@ -24,7 +25,7 @@
   "web_accessible_resources": [
     {
       "resources": ["icons/goose.png"],
-      "matches": ["https://github.com/*"]
+      "matches": ["<all_urls>"]
     }
   ]
 }
