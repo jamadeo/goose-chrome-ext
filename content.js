@@ -51,7 +51,7 @@
     btn.title = "Open PR in goose";
 
     const img = document.createElement("img");
-    img.src = chrome.runtime.getURL("icons/goose.svg");
+    img.src = chrome.runtime.getURL("icons/goose.png");
     img.alt = "";
     img.setAttribute("aria-hidden", "true");
     btn.appendChild(img);

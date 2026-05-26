@@ -23,7 +23,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["icons/goose.svg"],
+      "resources": ["icons/goose.png"],
       "matches": ["https://github.com/*"]
     }
   ]
